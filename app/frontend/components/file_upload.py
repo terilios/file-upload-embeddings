@@ -3,6 +3,7 @@ import requests
 from typing import Optional, Dict
 import time
 from pathlib import Path
+import os
 
 from config.settings import settings
 
@@ -45,10 +46,13 @@ def upload_file(file) -> Optional[Dict]:
         # Create upload form data
         files = {"file": file}
         
+        # Get backend URL from environment variable or use default
+        backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+        
         # Upload file to backend
         with st.spinner("Processing document..."):
             response = requests.post(
-                f"http://localhost:8000{settings.API_V1_STR}/documents/upload",
+                f"{backend_url}{settings.API_V1_STR}/documents/upload",
                 files=files
             )
         
@@ -128,8 +132,11 @@ def render_file_upload() -> Optional[Dict]:
 def render_document_list():
     """Render the list of uploaded documents."""
     try:
+        # Get backend URL from environment variable or use default
+        backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+        
         response = requests.get(
-            f"http://localhost:8000{settings.API_V1_STR}/documents/list"
+            f"{backend_url}{settings.API_V1_STR}/documents/list"
         )
         
         if response.status_code == 200:
@@ -173,8 +180,11 @@ def delete_document(document_id: int) -> bool:
         True if deletion was successful, False otherwise
     """
     try:
+        # Get backend URL from environment variable or use default
+        backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+        
         response = requests.delete(
-            f"http://localhost:8000{settings.API_V1_STR}/documents/{document_id}"
+            f"{backend_url}{settings.API_V1_STR}/documents/{document_id}"
         )
         return response.status_code == 200
     except:

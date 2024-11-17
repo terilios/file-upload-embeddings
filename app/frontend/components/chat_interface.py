@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 from typing import List, Dict, Optional
 from datetime import datetime
+import os
 
 from config.settings import settings
 
@@ -49,23 +50,25 @@ def send_message(
         Response data if successful, None otherwise
     """
     try:
-        payload = {
+        # Get backend URL from environment variable or use default
+        backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+        
+        # Prepare request data
+        data = {
             "query": query,
             "document_id": document_id,
             "session_id": session_id
         }
         
+        # Send request to backend
         response = requests.post(
-            f"http://localhost:8000{settings.API_V1_STR}/chat/query",
-            json=payload
+            f"{backend_url}{settings.API_V1_STR}/chat/query",
+            json=data
         )
         
         if response.status_code == 200:
             return response.json()
-        else:
-            st.error(f"Error: {response.text}")
-            return None
-            
+        return None
     except Exception as e:
         st.error(f"Error sending message: {str(e)}")
         return None
@@ -81,16 +84,17 @@ def load_chat_history(session_id: int) -> List[Dict]:
         List of message dictionaries
     """
     try:
+        # Get backend URL from environment variable or use default
+        backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+        
         response = requests.get(
-            f"http://localhost:8000{settings.API_V1_STR}/chat/sessions/{session_id}"
+            f"{backend_url}{settings.API_V1_STR}/chat/sessions/{session_id}"
         )
         
         if response.status_code == 200:
             session_data = response.json()
             return session_data.get("messages", [])
-        
         return []
-        
     except Exception as e:
         st.error(f"Error loading chat history: {str(e)}")
         return []

@@ -18,7 +18,8 @@ def setup_database():
         username=settings.POSTGRES_USER,
         password=settings.POSTGRES_PASSWORD,
         host=settings.POSTGRES_SERVER,
-        port=settings.POSTGRES_PORT
+        port=settings.POSTGRES_PORT,
+        database="postgres"  # Connect to default database first
     )
     
     engine = create_engine(str(engine_url))
@@ -36,6 +37,7 @@ def setup_database():
         if not result.scalar():
             conn.execute(text("commit"))
             conn.execute(text(f'CREATE DATABASE "{settings.POSTGRES_DB}"'))
+            conn.execute(text("commit"))
     
     # Connect to the created database
     engine = create_engine(settings.DATABASE_URL)
@@ -43,6 +45,7 @@ def setup_database():
     with engine.connect() as conn:
         # Create pgvector extension if it doesn't exist
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.execute(text("commit"))
         
         # Create all tables
         Base.metadata.create_all(engine)

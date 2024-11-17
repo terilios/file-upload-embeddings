@@ -3,8 +3,24 @@ from typing import List, Optional
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, JSON, Text
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.types import TypeDecorator, UserDefinedType
 
 Base = declarative_base()
+
+class Vector(UserDefinedType):
+    def __init__(self, dimensions=None):
+        self.dimensions = dimensions
+
+    def get_col_spec(self):
+        if self.dimensions is not None:
+            return f"vector({self.dimensions})"
+        return "vector"
+
+    def bind_expression(self, bindvalue):
+        return bindvalue
+
+    def column_expression(self, col):
+        return col
 
 class Document(Base):
     """Model for storing document metadata and content."""
@@ -16,7 +32,7 @@ class Document(Base):
     file_size = Column(Integer, nullable=False)  # in bytes
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    metadata = Column(JSON, nullable=True)
+    doc_metadata = Column(JSON, nullable=True)
     
     # Relationships
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
@@ -32,9 +48,9 @@ class DocumentChunk(Base):
     document_id = Column(Integer, ForeignKey("documents.id"), nullable=False)
     content = Column(Text, nullable=False)
     chunk_index = Column(Integer, nullable=False)  # Order within document
-    embedding = Column(ARRAY(Float), nullable=True)  # Vector embedding
+    embedding = Column(Vector(1536), nullable=True)  # Vector embedding with OpenAI dimensions
     token_count = Column(Integer, nullable=False)
-    metadata = Column(JSON, nullable=True)  # Chunk-specific metadata
+    chunk_metadata = Column(JSON, nullable=True)  # Chunk-specific metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -50,7 +66,7 @@ class ChatSession(Base):
     id = Column(Integer, primary_key=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    metadata = Column(JSON, nullable=True)
+    session_metadata = Column(JSON, nullable=True)
     
     # Relationships
     messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
@@ -67,10 +83,10 @@ class ChatMessage(Base):
     role = Column(String, nullable=False)  # 'user' or 'assistant'
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    metadata = Column(JSON, nullable=True)  # For storing citations, sources, etc.
+    message_metadata = Column(JSON, nullable=True)  # For storing citations, sources, etc.
     
     # Relationships
     session = relationship("ChatSession", back_populates="messages")
 
     def __repr__(self):
-        return f"<ChatMessage(id={self.id}, role={self.role})>"
+        return f"<ChatMessage(id={self.id}, session_id={self.session_id}, role={self.role})>"

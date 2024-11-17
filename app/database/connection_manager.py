@@ -36,9 +36,9 @@ class ConnectionManager:
         self._db_engine = create_engine(
             settings.DATABASE_URL,
             poolclass=QueuePool,
-            pool_size=settings.SQLALCHEMY_POOL_SIZE,
-            max_overflow=settings.SQLALCHEMY_MAX_OVERFLOW,
-            pool_timeout=settings.SQLALCHEMY_POOL_TIMEOUT,
+            pool_size=getattr(settings, 'SQLALCHEMY_POOL_SIZE', 5),
+            max_overflow=getattr(settings, 'SQLALCHEMY_MAX_OVERFLOW', 10),
+            pool_timeout=getattr(settings, 'SQLALCHEMY_POOL_TIMEOUT', 30),
             pool_pre_ping=True  # Enable connection health checks
         )
         
@@ -59,8 +59,8 @@ class ConnectionManager:
         """Configure Redis connection pool."""
         self._redis_pool = ConnectionPool.from_url(
             settings.CACHE_REDIS_URL,
-            max_connections=settings.REDIS_POOL_SIZE,
-            socket_timeout=settings.REDIS_POOL_TIMEOUT,
+            max_connections=getattr(settings, 'REDIS_POOL_SIZE', 10),
+            socket_timeout=getattr(settings, 'REDIS_POOL_TIMEOUT', 30),
             socket_keepalive=True,
             health_check_interval=self._health_check_interval
         )
