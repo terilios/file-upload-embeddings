@@ -88,32 +88,136 @@ class VectorStore:
         query_embedding: List[float],
         top_k: int = settings.TOP_K_RESULTS,
         threshold: Optional[float] = None,
-        filters: Optional[Dict] = None
-    ) -> List[Tuple[DocumentChunk, float]]:
-        """Perform optimized similarity search."""
+        filters: Optional[Dict] = None,
+        rerank: bool = True,
+        include_metadata: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        Perform optimized similarity search with advanced filtering and reranking.
+        
+        Args:
+            query_embedding: Query embedding vector
+            top_k: Number of results to return
+            threshold: Minimum similarity threshold
+            filters: Dictionary of metadata filters
+            rerank: Whether to rerank results using additional criteria
+            include_metadata: Whether to include full chunk and document metadata
+        
+        Returns:
+            List of dictionaries containing search results with scores and metadata
+        """
         try:
-            # Execute optimized query
+            # Validate input
+            if not isinstance(query_embedding, list) or len(query_embedding) != self.dimension:
+                raise ValueError(f"Query embedding must be a list of {self.dimension} dimensions")
+            
+            if top_k < 1:
+                raise ValueError("top_k must be positive")
+            
+            threshold = threshold or self.similarity_threshold
+            if not 0 <= threshold <= 1:
+                raise ValueError("Similarity threshold must be between 0 and 1")
+            
+            # Try cache first
+            cache_key = f"search:{hash(str(query_embedding))}"
+            if filters:
+                cache_key += f":{hash(str(filters))}"
+            cached_results = await self.cache.get_query_result(cache_key)
+            if cached_results:
+                return cached_results
+            
+            # Build query with filters
+            query = select(DocumentChunk).join(Document)
+            
+            if filters:
+                for field, value in filters.items():
+                    if field.startswith("document."):
+                        # Filter on document fields
+                        field_name = field.replace("document.", "")
+                        query = query.filter(getattr(Document, field_name) == value)
+                    else:
+                        # Filter on chunk metadata
+                        query = query.filter(DocumentChunk.metadata[field].astext == str(value))
+            
+            # Execute similarity search
             results = await query_optimizer.execute_similarity_query(
                 query_embedding,
                 self.session,
-                top_k=top_k,
-                threshold=threshold or self.similarity_threshold,
-                filters=filters
+                base_query=query,
+                top_k=top_k * 2 if rerank else top_k,  # Get more results if reranking
+                threshold=threshold
             )
             
-            # Convert results to DocumentChunk objects with scores
-            chunk_scores = []
+            # Process and optionally rerank results
+            processed_results = []
             for result in results:
-                chunk = self.session.get(DocumentChunk, result["id"])
-                if chunk:
-                    chunk_scores.append((chunk, result["similarity"]))
+                chunk = await self.session.get(DocumentChunk, result["id"])
+                if not chunk:
+                    continue
+                
+                document = await self.session.get(Document, chunk.document_id)
+                if not document:
+                    continue
+                
+                # Calculate additional ranking factors
+                recency_score = 0.0
+                if rerank and document.created_at:
+                    age_days = (datetime.utcnow() - document.created_at).days
+                    recency_score = 1.0 / (1.0 + age_days)  # Decay factor
+                
+                token_density_score = 0.0
+                if rerank and chunk.token_count:
+                    token_density_score = min(1.0, chunk.token_count / 500)  # Normalize by expected length
+                
+                # Combined score with weights
+                similarity_weight = 0.7
+                recency_weight = 0.2
+                density_weight = 0.1
+                
+                combined_score = (
+                    similarity_weight * result["similarity"] +
+                    recency_weight * recency_score +
+                    density_weight * token_density_score
+                ) if rerank else result["similarity"]
+                
+                result_data = {
+                    "chunk_id": chunk.id,
+                    "document_id": document.id,
+                    "content": chunk.content,
+                    "similarity": result["similarity"],
+                    "combined_score": combined_score
+                }
+                
+                if include_metadata:
+                    result_data.update({
+                        "chunk_metadata": chunk.metadata,
+                        "document_metadata": {
+                            "filename": document.filename,
+                            "content_type": document.content_type,
+                            "created_at": document.created_at.isoformat(),
+                            "file_size": document.file_size,
+                            "metadata": document.metadata
+                        }
+                    })
+                
+                processed_results.append(result_data)
             
-            return chunk_scores
+            # Final ranking and limiting
+            processed_results.sort(key=lambda x: x["combined_score"], reverse=True)
+            processed_results = processed_results[:top_k]
+            
+            # Cache results
+            await self.cache.set_query_result(
+                cache_key,
+                processed_results,
+                ttl=settings.CACHE_DEFAULT_TIMEOUT
+            )
+            
+            return processed_results
             
         except Exception as e:
             raise Exception(f"Error performing similarity search: {str(e)}")
     
-    @cache_embedding(ttl=settings.CACHE_DEFAULT_TIMEOUT)
     async def update_document_embeddings(
         self,
         document_id: int,

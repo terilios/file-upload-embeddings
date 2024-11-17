@@ -97,6 +97,21 @@ def split_text_into_chunks(
     
     return chunks
 
+def truncate_text(text: str, max_tokens: int) -> str:
+    """
+    Truncate text to a maximum number of tokens.
+    
+    Args:
+        text: Text to truncate
+        max_tokens: Maximum number of tokens
+    
+    Returns:
+        Truncated text
+    """
+    words = text.split()
+    truncated_text = ' '.join(words[:max_tokens])
+    return truncated_text
+
 def process_document(
     content: str,
     filename: str,
@@ -116,37 +131,94 @@ def process_document(
     
     Returns:
         List of dictionaries containing chunk data
+    
+    Raises:
+        ValueError: If document content is invalid or processing fails
+        RuntimeError: If embedding generation fails repeatedly
     """
-    # Determine chunk parameters
-    chunk_size, chunk_overlap = determine_chunk_params(content_type, file_size)
+    # Enhanced input validation
+    if not isinstance(content, str):
+        raise ValueError(f"Document content must be string, got {type(content)}")
     
-    # Split content into chunks
-    text_chunks = split_text_into_chunks(content, chunk_size, chunk_overlap)
+    content = content.strip()
+    if not content:
+        raise ValueError("Document content is empty")
+        
+    if file_size > settings.MAX_CONTENT_LENGTH:
+        raise ValueError(f"File size {file_size} exceeds maximum allowed size {settings.MAX_CONTENT_LENGTH}")
     
-    # Process each chunk
+    # Determine chunk parameters with validation
+    try:
+        chunk_size, chunk_overlap = determine_chunk_params(content_type, file_size)
+        if chunk_size <= 0 or chunk_overlap < 0 or chunk_overlap >= chunk_size:
+            raise ValueError(f"Invalid chunk parameters: size={chunk_size}, overlap={chunk_overlap}")
+    except Exception as e:
+        raise ValueError(f"Failed to determine chunk parameters: {str(e)}")
+    
+    # Split content into chunks with validation
+    try:
+        text_chunks = split_text_into_chunks(content, chunk_size, chunk_overlap)
+        if not text_chunks:
+            raise ValueError("Failed to split document into chunks")
+    except Exception as e:
+        raise ValueError(f"Error during document chunking: {str(e)}")
+    
+    # Process each chunk with retries
     processed_chunks = []
+    max_retries = 3
+    
     for idx, chunk_text in enumerate(text_chunks):
-        # Count tokens
-        token_count = count_tokens(chunk_text)
+        # Skip empty chunks
+        if not chunk_text.strip():
+            continue
+            
+        # Count tokens with validation
+        try:
+            token_count = count_tokens(chunk_text)
+            if token_count > settings.MAX_TOKENS:
+                chunk_text = truncate_text(chunk_text, settings.MAX_TOKENS)
+                token_count = count_tokens(chunk_text)
+        except Exception as e:
+            raise ValueError(f"Error counting tokens for chunk {idx}: {str(e)}")
         
-        # Generate embedding
-        embedding = generate_embeddings(chunk_text)
+        # Generate embedding with retries
+        embedding = None
+        last_error = None
         
-        # Create chunk metadata
-        chunk_metadata = {
-            "index": idx,
-            "total_chunks": len(text_chunks),
-            "token_count": token_count,
-            "original_file": filename,
-            **(metadata or {})
-        }
+        for retry in range(max_retries):
+            try:
+                # Try OpenAI first
+                embedding = generate_embeddings(chunk_text, use_azure=False)
+                if embedding and len(embedding) == settings.VECTOR_DIMENSION:
+                    break
+            except Exception as e:
+                try:
+                    # Fallback to Azure OpenAI
+                    embedding = generate_embeddings(chunk_text, use_azure=True)
+                    if embedding and len(embedding) == settings.VECTOR_DIMENSION:
+                        break
+                except Exception as e2:
+                    last_error = f"OpenAI: {str(e)}, Azure: {str(e2)}"
+                    if retry < max_retries - 1:
+                        continue
+                    raise RuntimeError(f"Failed to generate embedding for chunk {idx} after {max_retries} retries: {last_error}")
         
-        processed_chunks.append({
+        # Create chunk data with validation
+        chunk_data = {
             "content": chunk_text,
             "embedding": embedding,
             "token_count": token_count,
-            "metadata": chunk_metadata
-        })
+            "metadata": {
+                "chunk_index": idx,
+                "source_file": filename,
+                "content_type": content_type,
+                **metadata if metadata else {}
+            }
+        }
+        processed_chunks.append(chunk_data)
+    
+    if not processed_chunks:
+        raise ValueError("No valid chunks were processed")
     
     return processed_chunks
 
