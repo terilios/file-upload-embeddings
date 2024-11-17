@@ -1,0 +1,162 @@
+groups:
+  - name: application
+    rules:
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: |
+          rate(app_request_total{status=~"5.."}[5m]) 
+          / 
+          rate(app_request_total[5m]) 
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: High error rate detected
+          description: Error rate is above 5% for the last 5 minutes
+          runbook_url: https://wiki.example.com/runbooks/high-error-rate
+
+      # High Response Latency
+      - alert: HighResponseLatency
+        expr: |
+          histogram_quantile(0.95, rate(app_request_latency_seconds_bucket[5m])) 
+          > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High response latency detected
+          description: 95th percentile of response time is above 2 seconds
+          runbook_url: https://wiki.example.com/runbooks/high-latency
+
+      # Database Connection Pool Saturation
+      - alert: DatabasePoolSaturation
+        expr: |
+          max_over_time(app_db_pool_used[5m]) 
+          / 
+          max_over_time(app_db_pool_size[5m]) 
+          > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Database connection pool near capacity
+          description: Database connection pool usage is above 80%
+          runbook_url: https://wiki.example.com/runbooks/db-pool-saturation
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: |
+          (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)
+          /
+          node_memory_MemTotal_bytes 
+          > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High memory usage detected
+          description: System memory usage is above 85%
+          runbook_url: https://wiki.example.com/runbooks/high-memory-usage
+
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High CPU usage detected
+          description: CPU usage is above 80%
+          runbook_url: https://wiki.example.com/runbooks/high-cpu-usage
+
+      # High Disk Usage
+      - alert: HighDiskUsage
+        expr: |
+          (node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_free_bytes{mountpoint="/"})
+          /
+          node_filesystem_size_bytes{mountpoint="/"} 
+          > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High disk usage detected
+          description: Disk usage is above 85%
+          runbook_url: https://wiki.example.com/runbooks/high-disk-usage
+
+      # Cache Miss Rate
+      - alert: HighCacheMissRate
+        expr: |
+          rate(app_cache_miss_total[5m])
+          /
+          (rate(app_cache_hit_total[5m]) + rate(app_cache_miss_total[5m]))
+          > 0.4
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High cache miss rate detected
+          description: Cache miss rate is above 40%
+          runbook_url: https://wiki.example.com/runbooks/high-cache-miss
+
+      # Vector Search Latency
+      - alert: HighVectorSearchLatency
+        expr: |
+          histogram_quantile(0.95, rate(app_vector_search_latency_seconds_bucket[5m]))
+          > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High vector search latency detected
+          description: 95th percentile of vector search time is above 1 second
+          runbook_url: https://wiki.example.com/runbooks/vector-search-latency
+
+      # Document Processing Errors
+      - alert: HighDocumentProcessingErrors
+        expr: |
+          rate(app_document_process_total{status="failure"}[5m])
+          /
+          rate(app_document_process_total[5m])
+          > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: High document processing error rate
+          description: Document processing error rate is above 10%
+          runbook_url: https://wiki.example.com/runbooks/document-processing-errors
+
+      # Service Down
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Service is down
+          description: Service {{ $labels.instance }} is down
+          runbook_url: https://wiki.example.com/runbooks/service-down
+
+      # Redis Connection Issues
+      - alert: RedisConnectionIssues
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Redis connection issues detected
+          description: Redis instance {{ $labels.instance }} is down
+          runbook_url: https://wiki.example.com/runbooks/redis-connection
+
+      # PostgreSQL Connection Issues
+      - alert: PostgresConnectionIssues
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: PostgreSQL connection issues detected
+          description: PostgreSQL instance {{ $labels.instance }} is down
+          runbook_url: https://wiki.example.com/runbooks/postgres-connection
