@@ -1,6 +1,37 @@
 # File Upload Embeddings System
 
-A sophisticated document processing and retrieval system that uses vector embeddings for semantic search and question answering. The system supports advanced features like table extraction, OCR, code parsing, and hybrid search capabilities.
+## Strategic Overview
+
+The File Upload Embeddings System is an enterprise-grade document intelligence platform that transforms how organizations process, understand, and retrieve information from their document repositories. By leveraging advanced vector embeddings and state-of-the-art language models, it bridges the gap between traditional document management systems and modern AI-powered information retrieval.
+
+### Key Value Propositions
+
+- **Intelligent Document Understanding**: Automatically extract and understand content from any document format, including complex tables, code snippets, and scanned documents.
+- **Semantic Search & Discovery**: Go beyond keyword matching with context-aware search that understands the meaning behind queries.
+- **Enterprise-Ready Architecture**: Built with scalability, security, and performance in mind, supporting high-throughput document processing and real-time retrieval.
+- **Comprehensive Analytics**: Deep insights into document usage, search patterns, and system performance through integrated monitoring.
+
+### Target Use Cases
+
+1. **Enterprise Knowledge Management**
+   - Centralize and make searchable all corporate documentation
+   - Enable semantic search across multiple document formats
+   - Maintain document relationships and cross-references
+
+2. **Technical Documentation Systems**
+   - Process and analyze code repositories
+   - Extract insights from technical specifications
+   - Enable context-aware code search and reference
+
+3. **Research & Analysis Platforms**
+   - Process academic papers and research documents
+   - Extract and analyze data tables and figures
+   - Enable cross-document citation and reference tracking
+
+4. **Compliance & Legal Document Processing**
+   - Automated document classification and analysis
+   - Extract and track key clauses and terms
+   - Maintain audit trails and document lineage
 
 ## Features
 
@@ -242,10 +273,6 @@ pytest tests/test_integration/test_performance_benchmark.py
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Acknowledgments
+## About Terilios
 
-- OpenAI for embeddings
-- PostgreSQL and pgvector
-- FastAPI and Streamlit
-- Redis for caching
-- Prometheus and Grafana
+[Terilios](https://terilios.com) specializes in developing cutting-edge AI and machine learning solutions for enterprise document processing and information retrieval. Our File Upload Embeddings System represents our commitment to pushing the boundaries of what's possible in document intelligence and semantic search technology.
