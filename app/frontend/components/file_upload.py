@@ -46,8 +46,8 @@ def upload_file(file) -> Optional[Dict]:
         # Create upload form data
         files = {"file": file}
         
-        # Get backend URL from environment variable or use default
-        backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+        # Get backend URL from environment variable or use container name
+        backend_url = os.getenv("BACKEND_URL", "http://backend:8000")
         
         # Upload file to backend
         with st.spinner("Processing document..."):
@@ -132,8 +132,8 @@ def render_file_upload() -> Optional[Dict]:
 def render_document_list():
     """Render the list of uploaded documents."""
     try:
-        # Get backend URL from environment variable or use default
-        backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+        # Get backend URL from environment variable or use container name
+        backend_url = os.getenv("BACKEND_URL", "http://backend:8000")
         
         response = requests.get(
             f"{backend_url}{settings.API_V1_STR}/documents/list"
@@ -180,8 +180,8 @@ def delete_document(document_id: int) -> bool:
         True if deletion was successful, False otherwise
     """
     try:
-        # Get backend URL from environment variable or use default
-        backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+        # Get backend URL from environment variable or use container name
+        backend_url = os.getenv("BACKEND_URL", "http://backend:8000")
         
         response = requests.delete(
             f"{backend_url}{settings.API_V1_STR}/documents/{document_id}"

@@ -50,9 +50,9 @@ class QueryOptimizer:
                     dc.content,
                     dc.chunk_index,
                     dc.metadata,
-                    1 - (dc.embedding <=> :query_embedding::vector) as similarity
+                    1 - (dc.embedding <=> %(query_embedding)s::vector) as similarity
                 FROM document_chunks dc
-                WHERE 1 - (dc.embedding <=> :query_embedding::vector) > :threshold
+                WHERE 1 - (dc.embedding <=> %(query_embedding)s::vector) > %(threshold)s
                 {filter_clause}
             )
             SELECT 
@@ -62,7 +62,7 @@ class QueryOptimizer:
             FROM similarity_scores ss
             JOIN documents d ON ss.document_id = d.id
             ORDER BY ss.similarity DESC
-            LIMIT :limit
+            LIMIT %(limit)s
         """
         
         # Add filters if provided
@@ -70,12 +70,12 @@ class QueryOptimizer:
         if filters:
             conditions = []
             if "document_ids" in filters:
-                conditions.append("dc.document_id = ANY(:document_ids)")
+                conditions.append("dc.document_id = ANY(%(document_ids)s)")
             if "content_types" in filters:
-                conditions.append("d.content_type = ANY(:content_types)")
+                conditions.append("d.content_type = ANY(%(content_types)s)")
             if "date_range" in filters:
                 conditions.append(
-                    "d.created_at BETWEEN :date_from AND :date_to"
+                    "d.created_at BETWEEN %(date_from)s AND %(date_to)s"
                 )
             if conditions:
                 filter_clause = "AND " + " AND ".join(conditions)
@@ -108,7 +108,7 @@ class QueryOptimizer:
                 **kwargs
             )
             
-            # Execute query
+            # Prepare base parameters
             params = {
                 "query_embedding": query_embedding,
                 "threshold": kwargs.get("threshold", settings.SIMILARITY_THRESHOLD),
@@ -117,8 +117,16 @@ class QueryOptimizer:
             
             # Add filter parameters if provided
             filters = kwargs.get("filters", {})
-            params.update(filters)
+            if filters:
+                if "document_ids" in filters:
+                    params["document_ids"] = filters["document_ids"]
+                if "content_types" in filters:
+                    params["content_types"] = filters["content_types"]
+                if "date_range" in filters:
+                    params["date_from"] = filters["date_range"][0]
+                    params["date_to"] = filters["date_range"][1]
             
+            # Execute query
             result = session.execute(text(query), params)
             rows = result.fetchall()
             
@@ -128,23 +136,21 @@ class QueryOptimizer:
             self._update_avg_query_time(query_time)
             
             # Format results
-            return [
-                {
-                    "id": row.id,
-                    "document_id": row.document_id,
-                    "content": row.content,
-                    "chunk_index": row.chunk_index,
-                    "metadata": row.metadata,
-                    "similarity": float(row.similarity),
-                    "filename": row.filename,
-                    "content_type": row.content_type
-                }
-                for row in rows
-            ]
+            formatted_results = []
+            for row in rows:
+                result_dict = {}
+                for key in row.keys():
+                    value = getattr(row, key)
+                    if key == "similarity":
+                        value = float(value)
+                    result_dict[key] = value
+                formatted_results.append(result_dict)
+            
+            return formatted_results
             
         except Exception as e:
             logger.error(f"Query execution error: {str(e)}")
-            raise
+            return []  # Return empty list instead of raising exception
     
     async def analyze_query_performance(
         self,

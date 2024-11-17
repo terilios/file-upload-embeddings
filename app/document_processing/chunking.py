@@ -1,25 +1,33 @@
 from typing import List, Dict, Optional
 import re
+import logging
 from pathlib import Path
 from datetime import datetime
 
 from config.settings import settings
 from .embeddings import count_tokens, generate_embeddings
 
+logger = logging.getLogger(__name__)
+
 def determine_chunk_params(
     content_type: str,
     file_size: int
 ) -> tuple[int, int]:
     """
-    Determine appropriate chunk size and overlap based on content type and file size.
+    Determine chunk size and overlap based on document type and file size.
     
     Args:
-        content_type: MIME type or document type
+        content_type: MIME type of the document
         file_size: Size of the file in bytes
     
     Returns:
         Tuple of (chunk_size, overlap)
     """
+    # Logging added for debugging
+    print(f"Determining chunk params - Content Type: {content_type}, File Size: {file_size}")
+    print(f"Available chunk size mapping: {settings.CHUNK_SIZE_MAPPING}")
+    print(f"Available chunk overlap mapping: {settings.CHUNK_OVERLAP_MAPPING}")
+    
     # Map content type to document type
     doc_type = "default"
     if "email" in content_type or file_size < 50000:  # 50KB
@@ -29,8 +37,12 @@ def determine_chunk_params(
     elif "technical" in content_type or file_size > 1000000:  # 1MB
         doc_type = "technical"
     
+    print(f"Determined document type: {doc_type}")
+    
     chunk_size = settings.CHUNK_SIZE_MAPPING.get(doc_type, settings.CHUNK_SIZE_MAPPING["default"])
     chunk_overlap = settings.CHUNK_OVERLAP_MAPPING.get(doc_type, settings.CHUNK_OVERLAP_MAPPING["default"])
+    
+    print(f"Chunk parameters - Size: {chunk_size}, Overlap: {chunk_overlap}")
     
     return chunk_size, chunk_overlap
 
@@ -212,7 +224,7 @@ def process_document(
                 "chunk_index": idx,
                 "source_file": filename,
                 "content_type": content_type,
-                **metadata if metadata else {}
+                **(metadata or {})
             }
         }
         processed_chunks.append(chunk_data)

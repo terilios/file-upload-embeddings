@@ -49,7 +49,7 @@ def get_document_stats(document_id: int) -> Optional[Dict]:
     """
     try:
         response = requests.get(
-            f"http://localhost:8000{settings.API_V1_STR}/documents/{document_id}"
+            f"http://backend:8000{settings.API_V1_STR}/documents/{document_id}"
         )
         
         if response.status_code == 200:
@@ -157,7 +157,7 @@ def delete_document(document_id: int) -> bool:
     """
     try:
         response = requests.delete(
-            f"http://localhost:8000{settings.API_V1_STR}/documents/{document_id}"
+            f"http://backend:8000{settings.API_V1_STR}/documents/{document_id}"
         )
         return response.status_code == 200
     except:

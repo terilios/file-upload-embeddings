@@ -1,7 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from datetime import datetime
 
 from config.settings import settings
 
@@ -14,7 +15,10 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501"],  # Streamlit frontend
+    allow_origins=[
+        "http://frontend:8501",  # Streamlit frontend in Docker
+        "http://localhost:8501"  # Local development
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,19 +66,23 @@ async def health_check():
     try:
         # Test database connection
         db = SessionLocal()
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db.close()
         
         return {
             "status": "healthy",
             "database": "connected",
-            "api_version": "1.0.0"
+            "api_version": "1.0.0",
+            "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Service unhealthy: {str(e)}"
-        )
+        error_msg = str(e)
+        print(f"Health check failed: {error_msg}")
+        return {
+            "status": "unhealthy",
+            "error": error_msg,
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 if __name__ == "__main__":
     import uvicorn

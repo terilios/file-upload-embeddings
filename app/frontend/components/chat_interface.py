@@ -50,8 +50,8 @@ def send_message(
         Response data if successful, None otherwise
     """
     try:
-        # Get backend URL from environment variable or use default
-        backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+        # Get backend URL from environment variable or use container name
+        backend_url = os.getenv("BACKEND_URL", "http://backend:8000")
         
         # Prepare request data
         data = {
@@ -84,8 +84,8 @@ def load_chat_history(session_id: int) -> List[Dict]:
         List of message dictionaries
     """
     try:
-        # Get backend URL from environment variable or use default
-        backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+        # Get backend URL from environment variable or use container name
+        backend_url = os.getenv("BACKEND_URL", "http://backend:8000")
         
         response = requests.get(
             f"{backend_url}{settings.API_V1_STR}/chat/sessions/{session_id}"

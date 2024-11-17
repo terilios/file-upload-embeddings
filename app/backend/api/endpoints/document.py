@@ -57,60 +57,116 @@ async def upload_document(
     """
     Upload and process a document for vector search.
     """
-    # Validate file extension
-    file_extension = file.filename.lower().split('.')[-1]
-    if file_extension not in settings.ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type. Allowed types: {', '.join(settings.ALLOWED_EXTENSIONS)}"
-        )
-    
     try:
-        # Read file content
-        content = await read_file_content(file)
+        # Debug print statements
+        print(f"Uploaded file details:")
+        print(f"Filename: {file.filename}")
+        print(f"Content Type: {file.content_type}")
         
-        # Get file size
-        file.file.seek(0, 2)  # Seek to end
-        file_size = file.file.tell()
-        file.file.seek(0)  # Reset position
+        # Validate file extension
+        file_extension = file.filename.lower().split('.')[-1]
+        if file_extension not in settings.ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type. Allowed types: {', '.join(settings.ALLOWED_EXTENSIONS)}"
+            )
         
-        # Extract metadata
-        metadata = extract_metadata(
-            filename=file.filename,
-            content_type=file.content_type,
-            file_size=file_size
-        )
-        
-        # Process document into chunks with embeddings
-        processed_chunks = process_document(
-            content=content,
-            filename=file.filename,
-            content_type=file.content_type,
-            file_size=file_size,
-            metadata=metadata
-        )
-        
-        # Store document and chunks in vector store
-        vector_store = VectorStore(db)
-        document = await vector_store.store_document(
-            filename=file.filename,
-            content_type=file.content_type,
-            file_size=file_size,
-            chunks=processed_chunks,
-            metadata=metadata
-        )
-        
-        return {
-            "id": document.id,
-            "filename": document.filename,
-            "chunk_count": len(processed_chunks),
-            "metadata": document.metadata
-        }
-    
+        try:
+            # Read file content
+            content = await read_file_content(file)
+            if not content.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="File appears to be empty or contains no extractable text"
+                )
+            
+            # Get file size
+            file.file.seek(0, 2)  # Seek to end
+            file_size = file.file.tell()
+            file.file.seek(0)  # Reset position
+            
+            # Validate file size
+            if file_size > settings.MAX_CONTENT_LENGTH:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File size ({file_size} bytes) exceeds maximum allowed size ({settings.MAX_CONTENT_LENGTH} bytes)"
+                )
+            
+            # Fallback content type if None
+            content_type = file.content_type or f"application/{file_extension}"
+            print(f"Using content type: {content_type}")
+            
+            try:
+                # Extract metadata
+                metadata = extract_metadata(
+                    filename=file.filename,
+                    content_type=content_type,
+                    file_size=file_size
+                )
+                
+                # Process document into chunks with embeddings
+                processed_chunks = process_document(
+                    content=content,
+                    filename=file.filename,
+                    content_type=content_type,
+                    file_size=file_size,
+                    metadata=metadata
+                )
+                
+                if not processed_chunks:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Document processing failed: no chunks were generated"
+                    )
+                
+                # Store document and chunks in vector store
+                vector_store = VectorStore(db)
+                document = await vector_store.store_document(
+                    filename=file.filename,
+                    content_type=content_type,
+                    file_size=file_size,
+                    chunks=processed_chunks,
+                    metadata=metadata
+                )
+                
+                return {
+                    "id": document.id,
+                    "filename": document.filename,
+                    "chunk_count": len(processed_chunks),
+                    "metadata": document.metadata
+                }
+                
+            except ValueError as e:
+                # Handle document processing errors
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Document processing error: {str(e)}"
+                )
+            except RuntimeError as e:
+                # Handle embedding generation errors
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Embedding generation error: {str(e)}"
+                )
+            
+        except HTTPException:
+            # Re-raise HTTP exceptions
+            raise
+        except Exception as e:
+            # Handle file reading errors
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error reading file: {str(e)}"
+            )
+            
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
+        # Handle any other unexpected errors
         raise HTTPException(
             status_code=500,
-            detail=f"Error processing document: {str(e)}"
+            detail=f"Unexpected error during document upload: {str(e)}"
         )
 
 @router.get("/list")

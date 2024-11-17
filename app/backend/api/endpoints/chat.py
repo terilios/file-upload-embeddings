@@ -10,6 +10,9 @@ from app.document_processing.embeddings import generate_embeddings
 from app.database.models import ChatSession, ChatMessage
 from config.settings import settings
 from app.backend.main import get_db
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -93,6 +96,13 @@ async def query_documents(
             top_k=settings.TOP_K_RESULTS
         )
         
+        if not relevant_chunks:
+            return ChatResponse(
+                response="I couldn't find any relevant information in the documents to answer your question. Could you please rephrase your question or provide more context?",
+                sources=[],
+                session_id=request.session_id or 0
+            )
+        
         # Get or create chat session
         session = None
         if request.session_id:
@@ -168,6 +178,7 @@ async def query_documents(
         )
     
     except Exception as e:
+        logger.error(f"Error processing query: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Error processing query: {str(e)}"

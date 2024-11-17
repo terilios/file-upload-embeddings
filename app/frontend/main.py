@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import json
+import os
 from pathlib import Path
 import sys
 from datetime import datetime
@@ -114,12 +115,23 @@ def main():
 def check_api_health() -> bool:
     """Check if the backend API is healthy."""
     try:
+        # Always use the container name in Docker
+        backend_url = os.getenv("BACKEND_URL", "http://backend:8000")
+        
+        # Add timeout and headers
         response = requests.get(
-            f"http://localhost:8000{settings.API_V1_STR}/health",
-            timeout=5
+            f"{backend_url}/health",
+            timeout=5,
+            headers={"Accept": "application/json"}
         )
-        return response.status_code == 200
-    except:
+        
+        if response.status_code == 200:
+            health_data = response.json()
+            return health_data.get("status") == "healthy"
+        return False
+        
+    except Exception as e:
+        print(f"API health check failed: {e}")
         return False
 
 if __name__ == "__main__":

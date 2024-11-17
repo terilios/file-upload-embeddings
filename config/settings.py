@@ -24,7 +24,7 @@ IN_DOCKER = os.getenv('IN_DOCKER', 'false').lower() == 'true'
 # Database configuration
 POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
-POSTGRES_SERVER = os.getenv("POSTGRES_SERVER", "postgres" if IN_DOCKER else "localhost")
+POSTGRES_SERVER = os.getenv("POSTGRES_SERVER", "postgres")  # Use container name by default
 POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
 POSTGRES_DB = os.getenv("POSTGRES_DB", "file_upload_embeddings")
 
@@ -49,7 +49,7 @@ CHUNK_SIZE_MAPPING: Dict[str, int] = {
 CHUNK_OVERLAP_MAPPING: Dict[str, int] = {
     "email": 50,
     "report": 100,
-    "technical": 200,
+    "technical": 150,
     "default": 100
 }
 
@@ -71,7 +71,7 @@ STREAMLIT_THEME = {
 }
 
 # Redis Configuration
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0" if IN_DOCKER else "redis://localhost:6379/0")
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")  # Use container name by default
 REDIS_POOL_SIZE = int(os.getenv("REDIS_POOL_SIZE", "10"))
 REDIS_POOL_TIMEOUT = int(os.getenv("REDIS_POOL_TIMEOUT", "30"))
 

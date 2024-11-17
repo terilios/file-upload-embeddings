@@ -4,6 +4,10 @@ import openai
 from openai import AzureOpenAI
 import tiktoken
 from config.settings import settings
+import logging
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 # Initialize OpenAI clients
 openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -50,47 +54,62 @@ def generate_embeddings(
     Returns:
         List of embedding values
     """
+    # Validate inputs
+    if not text or not isinstance(text, str):
+        raise ValueError("Text must be a non-empty string")
+    
+    # Validate clients
+    if use_azure and not azure_client:
+        logger.warning("Azure client not configured. Falling back to OpenAI.")
+        use_azure = False
+    
+    if not openai_client:
+        raise RuntimeError("OpenAI client not configured. Please set OPENAI_API_KEY.")
+    
     # Truncate text if necessary
     if count_tokens(text) > max_tokens:
         text = truncate_text(text, max_tokens)
     
+    # Embedding generation with enhanced error handling
+    error_messages = []
+    
+    # Try OpenAI first
     try:
-        if use_azure and azure_client:
+        response = openai_client.embeddings.create(
+            model=model,
+            input=text
+        )
+        embedding = response.data[0].embedding
+        
+        # Validate embedding
+        if not embedding or len(embedding) != settings.VECTOR_DIMENSION:
+            error_messages.append(f"Invalid OpenAI embedding: length {len(embedding)}")
+        else:
+            return embedding
+    except Exception as e:
+        error_messages.append(f"OpenAI embedding error: {str(e)}")
+        logger.error(f"OpenAI embedding error: {str(e)}")
+    
+    # Fallback to Azure if configured
+    if use_azure and azure_client:
+        try:
             response = azure_client.embeddings.create(
                 model=settings.AZURE_OPENAI_DEPLOYMENT_NAME,
                 input=text
             )
-        else:
-            response = openai_client.embeddings.create(
-                model=model,
-                input=text
-            )
-        
-        return response.data[0].embedding
-        
-    except Exception as e:
-        # If one client fails, try the other
-        if use_azure:
-            try:
-                response = openai_client.embeddings.create(
-                    model=model,
-                    input=text
-                )
-                return response.data[0].embedding
-            except Exception as e2:
-                raise Exception(f"Both Azure and OpenAI embedding generation failed: {str(e)}, {str(e2)}")
-        else:
-            if azure_client:
-                try:
-                    response = azure_client.embeddings.create(
-                        model=settings.AZURE_OPENAI_DEPLOYMENT_NAME,
-                        input=text
-                    )
-                    return response.data[0].embedding
-                except Exception as e2:
-                    raise Exception(f"Both OpenAI and Azure embedding generation failed: {str(e)}, {str(e2)}")
+            embedding = response.data[0].embedding
+            
+            # Validate embedding
+            if not embedding or len(embedding) != settings.VECTOR_DIMENSION:
+                error_messages.append(f"Invalid Azure embedding: length {len(embedding)}")
             else:
-                raise Exception(f"OpenAI embedding generation failed: {str(e)}")
+                return embedding
+        except Exception as e:
+            error_messages.append(f"Azure embedding error: {str(e)}")
+            logger.error(f"Azure embedding error: {str(e)}")
+    
+    # If all attempts fail
+    raise RuntimeError(f"Embedding generation failed. Errors: {'; '.join(error_messages)}")
 
 def batch_generate_embeddings(
     texts: List[str],

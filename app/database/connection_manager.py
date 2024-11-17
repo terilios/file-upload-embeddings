@@ -1,7 +1,7 @@
 from typing import Optional, Dict
 from contextlib import contextmanager
 import time
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.pool import QueuePool
 from sqlalchemy.exc import SQLAlchemyError, DisconnectionError
@@ -80,8 +80,8 @@ class ConnectionManager:
         current_time = time.time()
         if current_time - self._last_health_check > self._health_check_interval:
             try:
-                # Test connection with simple query
-                connection_proxy.scalar("SELECT 1")
+                # Test connection with simple query using SQLAlchemy text()
+                connection_proxy.scalar(text("SELECT 1"))
                 self._last_health_check = current_time
             except Exception as e:
                 logger.error(f"Connection health check failed: {str(e)}")

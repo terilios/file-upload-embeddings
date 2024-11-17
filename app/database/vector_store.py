@@ -143,9 +143,9 @@ class VectorStore:
             results = await query_optimizer.execute_similarity_query(
                 query_embedding,
                 self.session,
-                base_query=query,
                 top_k=top_k * 2 if rerank else top_k,  # Get more results if reranking
-                threshold=threshold
+                threshold=threshold,
+                filters=filters
             )
             
             # Process and optionally rerank results
