@@ -4,6 +4,72 @@
 
 The File Upload Embeddings System is an enterprise-grade document intelligence platform that transforms how organizations process, understand, and retrieve information from their document repositories. By leveraging advanced vector embeddings and state-of-the-art language models, it bridges the gap between traditional document management systems and modern AI-powered information retrieval.
 
+### System Architecture
+
+#### Document Processing Pipeline
+```mermaid
+graph TD
+    A[Document Upload] --> B[Document Processor]
+    B --> C{Document Type}
+    C -->|PDF| D[PDF Processor]
+    C -->|Image| E[OCR Processor]
+    C -->|Code| F[Code Parser]
+    C -->|Text| G[Text Processor]
+    
+    D --> H[Table Extractor]
+    D --> I[Text Extraction]
+    E --> J[Image Text Extraction]
+    F --> K[AST Analysis]
+    F --> L[Syntax Highlighting]
+    
+    H --> M[Chunking]
+    I --> M
+    J --> M
+    K --> M
+    L --> M
+    
+    M --> N[Metadata Extraction]
+    N --> O[Embedding Generation]
+    O --> P[Vector Store]
+    O --> Q[Document Graph]
+    
+    P --> R[(PostgreSQL + pgvector)]
+    Q --> S[(Graph Database)]
+    
+    style A fill:#f9f,stroke:#333
+    style R fill:#bbf,stroke:#333
+    style S fill:#bbf,stroke:#333
+```
+
+#### Optimized RAG Architecture
+```mermaid
+graph LR
+    A[User Query] --> B[Query Processor]
+    B --> C[Query Expansion]
+    B --> D[Intent Analysis]
+    
+    C --> E[Hybrid Search]
+    D --> E
+    
+    E --> F[Vector Search]
+    E --> G[BM25 Search]
+    
+    F --> H[Redis Cache]
+    G --> H
+    
+    H --> I[Result Fusion]
+    I --> J[Context Window]
+    J --> K[Reranker]
+    
+    K --> L[Document Graph]
+    L --> M[Answer Generation]
+    
+    M --> N[Response]
+    
+    style A fill:#f9f,stroke:#333
+    style N fill:#f9f,stroke:#333
+```
+
 ### Key Value Propositions
 
 - **Intelligent Document Understanding**: Automatically extract and understand content from any document format, including complex tables, code snippets, and scanned documents.
@@ -35,7 +101,7 @@ The File Upload Embeddings System is an enterprise-grade document intelligence p
 
 ### Advanced RAG Architecture
 
-Our system goes far beyond naive RAG (Retrieval-Augmented Generation) implementations, offering superior performance and accuracy through several key innovations:
+This system goes far beyond naive RAG (Retrieval-Augmented Generation) implementations, offering superior performance and accuracy through several key innovations:
 
 #### 1. Intelligent Document Processing
 - **Adaptive Chunking**: Context-aware document splitting based on content type and structure
@@ -55,12 +121,81 @@ Our system goes far beyond naive RAG (Retrieval-Augmented Generation) implementa
 - **Parallel Processing**: Efficient handling of batch operations
 - **Comprehensive Monitoring**: Real-time performance tracking and alerting
 
-This sophisticated approach delivers:
-- Higher accuracy in document retrieval
-- Better performance at scale
-- More nuanced understanding of content
-- Improved handling of complex documents
-- Lower operational costs
+## Prerequisites
+
+- Docker and Docker Compose
+- Python 3.10+
+- PostgreSQL 13+ with pgvector extension
+- Redis 6+
+- At least 4GB RAM
+- 10GB free disk space
+- OpenAI API key or Azure OpenAI credentials
+
+## Quick Start
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/terilios/file-upload-embeddings.git
+   cd file-upload-embeddings
+   ```
+
+2. Create a .env file:
+   ```env
+   # Required: Choose either OpenAI API or Azure OpenAI
+   OPENAI_API_KEY=your_api_key_here
+
+   # Optional: Azure OpenAI Configuration
+   AZURE_OPENAI_API_KEY=your_azure_key
+   AZURE_OPENAI_API_BASE=your_azure_endpoint
+   AZURE_OPENAI_API_VERSION=your_api_version
+   AZURE_OPENAI_DEPLOYMENT_NAME=your_deployment_name
+
+   # Database Configuration
+   POSTGRES_USER=postgres
+   POSTGRES_PASSWORD=postgres
+   POSTGRES_DB=file_upload_embeddings
+
+   # Redis Configuration
+   REDIS_URL=redis://redis:6379/0
+
+   # Grafana Configuration (optional)
+   GRAFANA_ADMIN_PASSWORD=admin
+   ```
+
+3. Start the services:
+   ```bash
+   docker-compose up -d
+   ```
+
+4. Access the interfaces:
+   - Frontend UI: http://localhost:8501
+   - API Documentation: http://localhost:8000/docs
+   - Grafana Dashboard: http://localhost:3000 (admin/admin)
+   - Prometheus: http://localhost:9090
+
+## Project Structure
+
+```
+.
+├── app/
+│   ├── backend/          # FastAPI application
+│   │   ├── api/         # API routes and endpoints
+│   │   └── core/        # Core backend functionality
+│   ├── frontend/        # Streamlit interface
+│   ├── database/        # Database models and operations
+│   ├── document_processing/  # Document handling
+│   ├── cache/          # Redis caching implementation
+│   ├── monitoring/     # Logging and metrics
+│   └── rag/           # Retrieval and generation
+├── config/            # Configuration files
+├── monitoring/        # Monitoring configuration
+│   ├── grafana/      # Grafana dashboards and config
+│   └── prometheus/   # Prometheus config and rules
+├── scripts/          # Utility scripts
+├── tests/           # Test suite
+├── uploads/         # Document upload directory
+└── logs/           # Application logs
+```
 
 ## Features
 
@@ -86,41 +221,33 @@ This sophisticated approach delivers:
 - Performance monitoring
 - Comprehensive logging
 
-## Prerequisites
+## Monitoring Setup
 
-- Docker and Docker Compose
-- Python 3.10+
-- PostgreSQL 13+
-- Redis 6+
-- At least 4GB RAM
-- 10GB free disk space
+### Prometheus
+- Metrics collection from all services
+- Custom alerting rules
+- Performance and resource monitoring
+- Query latency tracking
 
-## Quick Start
+### Grafana
+- Pre-configured dashboards
+- System metrics visualization
+- Document processing metrics
+- Search performance analytics
+- Cache hit rates
+- Resource utilization
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/terilios/file-upload-embeddings.git
-   cd file-upload-embeddings
-   ```
+Access the monitoring stack:
+1. Grafana: http://localhost:3000 (default: admin/admin)
+   - System Metrics Dashboard
+   - Vector Search Performance
+   - Document Processing Pipeline
+   - Cache Performance
 
-2. Create a .env file:
-   ```env
-   OPENAI_API_KEY=your_api_key_here
-   POSTGRES_USER=postgres
-   POSTGRES_PASSWORD=postgres
-   POSTGRES_DB=file_upload_embeddings
-   REDIS_URL=redis://redis:6379/0
-   ```
-
-3. Start the services:
-   ```bash
-   docker-compose up -d
-   ```
-
-4. Access the interfaces:
-   - Frontend: http://localhost:8501
-   - API Documentation: http://localhost:8000/docs
-   - Monitoring Dashboard: http://localhost:3000
+2. Prometheus: http://localhost:9090
+   - Raw metrics
+   - Query explorer
+   - Alert manager
 
 ## Development Setup
 
@@ -151,60 +278,13 @@ This sophisticated approach delivers:
    streamlit run app/frontend/main.py
    ```
 
-## Project Structure
-
-```
-.
-├── app/
-│   ├── backend/          # FastAPI application
-│   ├── frontend/         # Streamlit interface
-│   ├── database/         # Database models and operations
-│   ├── document_processing/  # Document handling
-│   ├── cache/           # Caching implementation
-│   ├── monitoring/      # Logging and metrics
-│   └── rag/            # Retrieval and generation
-├── config/             # Configuration files
-├── scripts/            # Utility scripts
-├── tests/             # Test suite
-└── monitoring/        # Monitoring configuration
-```
-
-## Usage Guide
-
-### Document Upload
-1. Navigate to the frontend interface
-2. Use the sidebar to upload documents
-3. Supported formats:
-   - Text files (.txt)
-   - PDFs (.pdf)
-   - Word documents (.docx)
-   - Images (.jpg, .png)
-   - Code files (various extensions)
-
-### Search and Retrieval
-1. Enter your query in the chat interface
-2. The system will:
-   - Expand your query with relevant terms
-   - Perform hybrid search
-   - Analyze document relationships
-   - Create dynamic context windows
-   - Return relevant results with citations
-
-### Monitoring
-1. Access the Grafana dashboard
-2. View metrics for:
-   - System performance
-   - Query latency
-   - Cache hit rates
-   - Resource utilization
-
 ## Configuration
 
 ### Database Settings
 ```python
 # config/settings.py
 POSTGRES_CONFIG = {
-    'host': 'localhost',
+    'host': 'postgres',
     'port': 5432,
     'database': 'file_upload_embeddings',
     'pool_size': 20,
@@ -216,7 +296,7 @@ POSTGRES_CONFIG = {
 ```python
 # config/settings.py
 REDIS_CONFIG = {
-    'url': 'redis://localhost:6379/0',
+    'url': 'redis://redis:6379/0',
     'pool_size': 20,
     'timeout': 300
 }
@@ -232,25 +312,6 @@ PROCESSING_CONFIG = {
     'max_workers': 4
 }
 ```
-
-## Performance Optimization
-
-### Connection Pooling
-- Database connections are pooled
-- Redis connections are pooled
-- Connection lifecycle is managed
-
-### Caching Strategy
-- Embeddings are cached
-- Query results are cached
-- Document metadata is cached
-- Cache invalidation is automatic
-
-### Query Optimization
-- BM25 for lexical search
-- Vector similarity for semantic search
-- Results are combined with weights
-- Indexes are optimized
 
 ## Testing
 
@@ -268,27 +329,6 @@ pytest tests/test_integration/
 ```bash
 pytest tests/test_integration/test_performance_benchmark.py
 ```
-
-## Monitoring
-
-### Metrics
-- Request latency
-- Query performance
-- Cache hit rates
-- Resource utilization
-- Error rates
-
-### Logging
-- Structured JSON logs
-- Request/response logging
-- Error tracking
-- Performance metrics
-
-### Dashboards
-- System overview
-- Search performance
-- Document processing
-- Cache performance
 
 ## Contributing
 
