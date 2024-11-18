@@ -41,7 +41,7 @@ graph TD
     style S fill:#bbf,stroke:#333
 ```
 
-#### Optimized RAG Architecture
+#### Vector Search Architecture
 ```mermaid
 graph LR
     A[User Query] --> B[Query Processor]
@@ -54,17 +54,17 @@ graph LR
     E --> F[Vector Search]
     E --> G[BM25 Search]
     
-    F --> H[Redis Cache]
-    G --> H
+    F --> H[StreamingDiskANN]
+    G --> I[PostgreSQL FTS]
     
-    H --> I[Result Fusion]
-    I --> J[Context Window]
-    J --> K[Reranker]
+    H --> J[Result Fusion]
+    I --> J
     
-    K --> L[Document Graph]
-    L --> M[Answer Generation]
+    J --> K[Context Window]
+    K --> L[Reranker]
     
-    M --> N[Response]
+    L --> M[Document Graph]
+    M --> N[Answer Generation]
     
     style A fill:#f9f,stroke:#333
     style N fill:#f9f,stroke:#333
@@ -75,80 +75,26 @@ graph LR
 Based on our benchmark testing, the system achieves:
 
 - Document Processing: Average processing speed of 50-100 documents per second
-- Search Latency: Average query response time < 200ms
+- Vector Search Latency: < 10ms using StreamingDiskANN indexes
 - Cache Performance: 2.5-3x speedup with Redis caching
 - Concurrent Operations: Supports 10+ concurrent users with minimal latency increase
 - Graph Operations: Average traversal time < 50ms for related document retrieval
 - Context Windows: Dynamic window generation in < 100ms
 - Query Expansion: Real-time expansion with < 50ms overhead
 
-### Database Schema
-
-The system uses a sophisticated PostgreSQL schema with pgvector extension:
-
-```sql
-documents
-- id (Primary Key)
-- filename
-- content_type
-- file_size
-- created_at
-- updated_at
-- doc_metadata (JSON)
-
-document_chunks
-- id (Primary Key)
-- document_id (Foreign Key)
-- content (Text)
-- chunk_index
-- embedding (Vector(1536))
-- token_count
-- chunk_metadata (JSON)
-- created_at
-
-chat_sessions
-- id (Primary Key)
-- created_at
-- updated_at
-- session_metadata (JSON)
-
-chat_messages
-- id (Primary Key)
-- session_id (Foreign Key)
-- role
-- content
-- created_at
-- message_metadata (JSON)
-```
-
-### Caching Strategy
-
-The system implements a sophisticated multi-level caching strategy:
-
-1. **Dual Connection Pools**
-   - Text Pool: For JSON and metadata
-   - Binary Pool: For embeddings and large objects
-
-2. **Cache Keys**
-   - Embeddings: `emb:{hash(text)}`
-   - Queries: `q:{hash(query)}:d:{doc_id}`
-   - Documents: `doc:{doc_id}`
-
-3. **Performance Features**
-   - Automatic compression
-   - Connection pooling
-   - Health checks
-   - Error tracking
-   - Performance metrics
-
 ## Prerequisites
 
 - Docker and Docker Compose
 - Python 3.10+
-- PostgreSQL 13+ with pgvector extension
+- PostgreSQL 15+ with extensions:
+  * pgvector for vector operations
+  * pgvectorscale for optimized vector indexing
+  * timescaledb for time-series capabilities
 - Redis 6+
-- At least 4GB RAM
-- 10GB free disk space
+- Minimum System Requirements:
+  * 4GB RAM (8GB recommended)
+  * 10GB disk space
+  * 4 CPU cores (8 recommended)
 - OpenAI API key or Azure OpenAI credentials
 
 ## Quick Start
@@ -193,6 +139,55 @@ The system implements a sophisticated multi-level caching strategy:
    - Grafana Dashboard: http://localhost:3000 (admin/admin)
    - Prometheus: http://localhost:9090
 
+## Database Setup
+
+### PostgreSQL Optimizations
+
+The system uses a highly optimized PostgreSQL setup with the following configurations:
+
+```sql
+-- Memory Settings
+shared_buffers = '2GB'
+effective_cache_size = '8GB'
+maintenance_work_mem = '2GB'
+work_mem = '128MB'
+
+-- Parallel Query Settings
+max_parallel_workers = '8'
+max_parallel_workers_per_gather = '4'
+max_parallel_maintenance_workers = '4'
+max_worker_processes = '16'
+
+-- Vector Operation Settings
+random_page_cost = '1.1'
+```
+
+### Vector Indexing
+
+We use StreamingDiskANN for efficient vector similarity search:
+
+```sql
+CREATE INDEX document_chunks_embedding_idx 
+ON document_chunks 
+USING streamingdiskann (embedding vector_cosine_ops)
+WITH (lists = 100);
+```
+
+Additional performance indexes:
+```sql
+-- Fast document retrieval
+CREATE INDEX document_chunks_document_id_idx ON document_chunks(document_id);
+CREATE INDEX document_chunks_chunk_index_idx ON document_chunks(chunk_index);
+
+-- Efficient document search
+CREATE INDEX documents_filename_idx ON documents(filename);
+CREATE INDEX documents_created_at_idx ON documents(created_at);
+
+-- Quick message access
+CREATE INDEX chat_messages_session_id_idx ON chat_messages(session_id);
+CREATE INDEX chat_messages_created_at_idx ON chat_messages(created_at);
+```
+
 ## Project Structure
 
 ```
@@ -211,7 +206,10 @@ The system implements a sophisticated multi-level caching strategy:
 ├── monitoring/        # Monitoring configuration
 │   ├── grafana/      # Grafana dashboards and config
 │   └── prometheus/   # Prometheus config and rules
-├── scripts/          # Utility scripts
+├── postgres/         # Custom PostgreSQL setup
+├── scripts/          # Database initialization
+│   ├── 00-init-extensions.sql    # Extension setup
+│   └── 01-init-tables.sql        # Schema initialization
 ├── tests/           # Test suite
 ├── uploads/         # Document upload directory
 └── logs/           # Application logs
@@ -227,7 +225,7 @@ pytest tests/test_integration/test_performance_benchmark.py
 ```
 Tests cover:
 - Document processing throughput
-- Search performance
+- Vector search performance
 - Graph operations
 - Context window generation
 - Query expansion
