@@ -41,28 +41,48 @@ class QueryOptimizer:
         Returns:
             Optimized SQL query
         """
-        # Base query with vector similarity
+        # Log search parameters
+        logger.info(f"Optimizing query with threshold: {threshold}")
+        logger.info(f"Vector dimensions: {len(query_embedding)}")
+        
+        # Base query with vector similarity and debug info
         base_query = """
-            WITH similarity_scores AS (
-                SELECT 
-                    dc.id,
-                    dc.document_id,
-                    dc.content,
-                    dc.chunk_index,
-                    dc.metadata,
-                    1 - (dc.embedding <=> %(query_embedding)s::vector) as similarity
-                FROM document_chunks dc
-                WHERE 1 - (dc.embedding <=> %(query_embedding)s::vector) > %(threshold)s
-                {filter_clause}
-            )
+        WITH raw_scores AS (
             SELECT 
-                ss.*,
-                d.filename,
-                d.content_type
-            FROM similarity_scores ss
-            JOIN documents d ON ss.document_id = d.id
-            ORDER BY ss.similarity DESC
-            LIMIT %(limit)s
+                dc.id,
+                dc.document_id,
+                dc.content,
+                dc.chunk_index,
+                dc.metadata,
+                (dc.embedding <=> :query_embedding::vector) as cosine_distance,
+                1 - (dc.embedding <=> :query_embedding::vector) as similarity,
+                array_length(dc.embedding, 1) as embedding_dim
+            FROM document_chunks dc
+            LIMIT 5
+        ),
+        similarity_scores AS (
+            SELECT 
+                dc.id,
+                dc.document_id,
+                dc.content,
+                dc.chunk_index,
+                dc.metadata,
+                1 - (dc.embedding <=> :query_embedding::vector) as similarity
+            FROM document_chunks dc
+            WHERE 1 - (dc.embedding <=> :query_embedding::vector) > :threshold
+            {filter_clause}
+        )
+        SELECT 
+            ss.*,
+            d.filename,
+            d.content_type
+        FROM similarity_scores ss
+        JOIN documents d ON ss.document_id = d.id
+        ORDER BY ss.similarity DESC
+        LIMIT :limit;
+        
+        -- Debug query to check raw scores
+        SELECT * FROM raw_scores;
         """
         
         # Add filters if provided
@@ -70,16 +90,17 @@ class QueryOptimizer:
         if filters:
             conditions = []
             if "document_ids" in filters:
-                conditions.append("dc.document_id = ANY(%(document_ids)s)")
+                conditions.append("dc.document_id = ANY(:document_ids)")
             if "content_types" in filters:
-                conditions.append("d.content_type = ANY(%(content_types)s)")
+                conditions.append("d.content_type = ANY(:content_types)")
             if "date_range" in filters:
                 conditions.append(
-                    "d.created_at BETWEEN %(date_from)s AND %(date_to)s"
+                    "d.created_at BETWEEN :date_from AND :date_to"
                 )
             if conditions:
                 filter_clause = "AND " + " AND ".join(conditions)
         
+        logger.info(f"Generated filter clause: {filter_clause}")
         return base_query.format(filter_clause=filter_clause)
     
     async def execute_similarity_query(
@@ -126,9 +147,25 @@ class QueryOptimizer:
                     params["date_from"] = filters["date_range"][0]
                     params["date_to"] = filters["date_range"][1]
             
+            # Debug logging
+            logger.info(f"Executing query: {query}")
+            logger.info(f"With parameters: {params}")
+            
             # Execute query
             result = session.execute(text(query), params)
             rows = result.fetchall()
+            
+            # Log results
+            logger.info(f"Found {len(rows)} results from database query")
+            if len(rows) == 0:
+                # Log the actual SQL query that was executed
+                logger.info("No results found. Checking query plan...")
+                explain_query = f"EXPLAIN ANALYZE {query}"
+                explain_result = session.execute(text(explain_query), params)
+                explain_rows = explain_result.fetchall()
+                logger.info("Query plan:")
+                for row in explain_rows:
+                    logger.info(row[0])
             
             # Update statistics
             self._stats["queries_executed"] += 1
@@ -150,6 +187,8 @@ class QueryOptimizer:
             
         except Exception as e:
             logger.error(f"Query execution error: {str(e)}")
+            logger.error(f"Query was: {query}")
+            logger.error(f"Parameters were: {params}")
             return []  # Return empty list instead of raising exception
     
     async def analyze_query_performance(

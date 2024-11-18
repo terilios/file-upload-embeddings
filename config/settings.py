@@ -55,7 +55,7 @@ CHUNK_OVERLAP_MAPPING: Dict[str, int] = {
 
 # Vector Store Settings
 VECTOR_DIMENSION = 1536  # OpenAI embedding dimension
-SIMILARITY_THRESHOLD = 0.7
+SIMILARITY_THRESHOLD = 0.5  # Lowered from 0.7 for better recall
 
 # Logging Configuration
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
@@ -70,15 +70,14 @@ STREAMLIT_THEME = {
     "font": "sans serif"
 }
 
-# Redis Configuration
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")  # Use container name by default
-REDIS_POOL_SIZE = int(os.getenv("REDIS_POOL_SIZE", "10"))
-REDIS_POOL_TIMEOUT = int(os.getenv("REDIS_POOL_TIMEOUT", "30"))
+# Redis Cache Settings
+CACHE_REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+CACHE_DEFAULT_TIMEOUT = int(os.getenv("CACHE_DEFAULT_TIMEOUT", 3600))  # 1 hour
+REDIS_POOL_SIZE = int(os.getenv("REDIS_POOL_SIZE", 10))
+REDIS_POOL_TIMEOUT = int(os.getenv("REDIS_POOL_TIMEOUT", 20))
 
 # Cache Configuration
 CACHE_TYPE = "redis"
-CACHE_REDIS_URL = REDIS_URL
-CACHE_DEFAULT_TIMEOUT = 3600  # 1 hour
 
 # SQLAlchemy Configuration
 SQLALCHEMY_POOL_SIZE = int(os.getenv("SQLALCHEMY_POOL_SIZE", "5"))

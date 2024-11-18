@@ -21,7 +21,7 @@ BEGIN
         CREATE INDEX IF NOT EXISTS document_chunks_embedding_idx 
         ON document_chunks 
         USING ivfflat (embedding vector_cosine_ops)
-        WITH (lists = 100);
+        WITH (lists = 50);  -- Reduced from 100 for better recall on smaller datasets
         
         -- Create index for document_id for faster joins
         CREATE INDEX IF NOT EXISTS document_chunks_document_id_idx

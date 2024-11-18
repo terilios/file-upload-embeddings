@@ -5,6 +5,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+      cache_from:
+        - type=local,src=/tmp/.buildx-cache
+        - type=local,src=/tmp/.buildx-cache-new
     ports:
       - "8000:8000"
     environment:
@@ -19,15 +24,35 @@ services:
       - AZURE_OPENAI_API_BASE=${AZURE_OPENAI_API_BASE:-}
       - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-}
       - AZURE_OPENAI_DEPLOYMENT_NAME=${AZURE_OPENAI_DEPLOYMENT_NAME:-}
+      - REDIS_POOL_SIZE=20
+      - REDIS_POOL_TIMEOUT=30
+      - SQLALCHEMY_POOL_SIZE=10
+      - SQLALCHEMY_MAX_OVERFLOW=20
+      - MODEL_CACHE_DIR=/app/.cache
+      - TRANSFORMERS_CACHE=/app/.cache/huggingface
+      - SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence_transformers
+      - TORCH_HOME=/app/.cache/torch
+      - PYTHONPATH=/app
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
     volumes:
       - ./app:/app/app
       - ./config:/app/config
       - ./logs:/app/logs
       - ./uploads:/app/uploads
       - ./temp:/app/temp
+      - ml-model-cache:/app/.cache
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - app-network
     healthcheck:
@@ -35,6 +60,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
 
   frontend:
     build:
@@ -44,17 +70,17 @@ services:
       - "8501:8501"
     environment:
       - BACKEND_URL=http://backend:8000
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}
-      - AZURE_OPENAI_API_BASE=${AZURE_OPENAI_API_BASE:-}
-      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-}
-      - AZURE_OPENAI_DEPLOYMENT_NAME=${AZURE_OPENAI_DEPLOYMENT_NAME:-}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
     volumes:
       - ./app:/app/app
       - ./config:/app/config
-      - ./logs:/app/logs
-      - ./uploads:/app/uploads
-      - ./temp:/app/temp
     depends_on:
       - backend
     networks:
@@ -64,45 +90,57 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
 
   postgres:
     image: ankane/pgvector:latest
-    ports:
-      - "5432:5432"
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=file_upload_embeddings
-      - POSTGRES_HOST_AUTH_METHOD=trust
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -h postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
   redis:
-    image: redis:latest
-    ports:
-      - "6379:6379"
+    image: redis:7-alpine
+    command: redis-server --maxmemory 768mb --maxmemory-policy allkeys-lru --save 900 1 --save 300 10
     volumes:
       - redis-data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 768M
+        reservations:
+          cpus: '0.25'
+          memory: 384M
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "redis-cli", "-h", "redis", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 5s
 
   prometheus:
     image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
     volumes:
       - ./monitoring/prometheus:/etc/prometheus
       - prometheus-data:/prometheus
@@ -111,33 +149,57 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   grafana:
     image: grafana/grafana:latest
     ports:
       - "3000:3000"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
       - grafana-data:/var/lib/grafana
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=http://localhost:3000
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
-    depends_on:
-      - prometheus
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   postgres-data:
   redis-data:
   prometheus-data:
   grafana-data:
-
-networks:
-  app-network:
-    driver: bridge
+  ml-model-cache:
+    driver: local

@@ -3,8 +3,10 @@ import json
 import pickle
 from datetime import timedelta, datetime
 import redis
+from redis.connection import ConnectionPool
 import numpy as np
 from functools import wraps
+import zlib
 
 from config.settings import settings
 
@@ -12,25 +14,36 @@ class RedisCache:
     """Redis cache implementation for storing embeddings and query results."""
     
     def __init__(self):
-        """Initialize Redis connection."""
-        self.redis = redis.Redis.from_url(
+        """Initialize Redis connection pools."""
+        # Connection pool for text data
+        self.text_pool = ConnectionPool.from_url(
             settings.CACHE_REDIS_URL,
             decode_responses=True,
             encoding='utf-8',
             socket_timeout=5.0,
             socket_connect_timeout=5.0,
             retry_on_timeout=True,
-            health_check_interval=30
+            health_check_interval=30,
+            max_connections=settings.REDIS_POOL_SIZE,
+            timeout=settings.REDIS_POOL_TIMEOUT
         )
-        # Separate connection for binary data (embeddings)
-        self.binary_redis = redis.Redis.from_url(
+        
+        # Connection pool for binary data
+        self.binary_pool = ConnectionPool.from_url(
             settings.CACHE_REDIS_URL,
             decode_responses=False,
             socket_timeout=5.0,
             socket_connect_timeout=5.0,
             retry_on_timeout=True,
-            health_check_interval=30
+            health_check_interval=30,
+            max_connections=settings.REDIS_POOL_SIZE,
+            timeout=settings.REDIS_POOL_TIMEOUT
         )
+        
+        # Create Redis clients from pools
+        self.redis = redis.Redis(connection_pool=self.text_pool)
+        self.binary_redis = redis.Redis(connection_pool=self.binary_pool)
+        
         self.default_ttl = settings.CACHE_DEFAULT_TIMEOUT
         self._init_cache_metrics()
     

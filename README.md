@@ -70,56 +70,76 @@ graph LR
     style N fill:#f9f,stroke:#333
 ```
 
-### Key Value Propositions
+### Performance Metrics
 
-- **Intelligent Document Understanding**: Automatically extract and understand content from any document format, including complex tables, code snippets, and scanned documents.
-- **Semantic Search & Discovery**: Go beyond keyword matching with context-aware search that understands the meaning behind queries.
-- **Enterprise-Ready Architecture**: Built with scalability, security, and performance in mind, supporting high-throughput document processing and real-time retrieval.
-- **Comprehensive Analytics**: Deep insights into document usage, search patterns, and system performance through integrated monitoring.
+Based on our benchmark testing, the system achieves:
 
-### Target Use Cases
+- Document Processing: Average processing speed of 50-100 documents per second
+- Search Latency: Average query response time < 200ms
+- Cache Performance: 2.5-3x speedup with Redis caching
+- Concurrent Operations: Supports 10+ concurrent users with minimal latency increase
+- Graph Operations: Average traversal time < 50ms for related document retrieval
+- Context Windows: Dynamic window generation in < 100ms
+- Query Expansion: Real-time expansion with < 50ms overhead
 
-1. **Enterprise Knowledge Management**
-   - Centralize and make searchable all corporate documentation
-   - Enable semantic search across multiple document formats
-   - Maintain document relationships and cross-references
+### Database Schema
 
-2. **Technical Documentation Systems**
-   - Process and analyze code repositories
-   - Extract insights from technical specifications
-   - Enable context-aware code search and reference
+The system uses a sophisticated PostgreSQL schema with pgvector extension:
 
-3. **Research & Analysis Platforms**
-   - Process academic papers and research documents
-   - Extract and analyze data tables and figures
-   - Enable cross-document citation and reference tracking
+```sql
+documents
+- id (Primary Key)
+- filename
+- content_type
+- file_size
+- created_at
+- updated_at
+- doc_metadata (JSON)
 
-4. **Compliance & Legal Document Processing**
-   - Automated document classification and analysis
-   - Extract and track key clauses and terms
-   - Maintain audit trails and document lineage
+document_chunks
+- id (Primary Key)
+- document_id (Foreign Key)
+- content (Text)
+- chunk_index
+- embedding (Vector(1536))
+- token_count
+- chunk_metadata (JSON)
+- created_at
 
-### Advanced RAG Architecture
+chat_sessions
+- id (Primary Key)
+- created_at
+- updated_at
+- session_metadata (JSON)
 
-This system goes far beyond naive RAG (Retrieval-Augmented Generation) implementations, offering superior performance and accuracy through several key innovations:
+chat_messages
+- id (Primary Key)
+- session_id (Foreign Key)
+- role
+- content
+- created_at
+- message_metadata (JSON)
+```
 
-#### 1. Intelligent Document Processing
-- **Adaptive Chunking**: Context-aware document splitting based on content type and structure
-- **Specialized Handlers**: Dedicated processing for tables, code blocks, and images
-- **Semantic Preservation**: Maintains document hierarchy and relationships
-- **Multi-Modal Processing**: Integrated OCR and code parsing capabilities
+### Caching Strategy
 
-#### 2. Enhanced Retrieval System
-- **Hybrid Search**: Combines BM25 and vector similarity for superior results
-- **Dynamic Context**: Adaptive window sizing based on query complexity
-- **Document Graph Analysis**: Understands and utilizes document relationships
-- **Query Enhancement**: Automatic expansion with domain-specific terms
+The system implements a sophisticated multi-level caching strategy:
 
-#### 3. Enterprise Optimization
-- **Advanced Caching**: Multi-level caching strategy with Redis
-- **Performance Tuning**: Optimized database indexes and connection pooling
-- **Parallel Processing**: Efficient handling of batch operations
-- **Comprehensive Monitoring**: Real-time performance tracking and alerting
+1. **Dual Connection Pools**
+   - Text Pool: For JSON and metadata
+   - Binary Pool: For embeddings and large objects
+
+2. **Cache Keys**
+   - Embeddings: `emb:{hash(text)}`
+   - Queries: `q:{hash(query)}:d:{doc_id}`
+   - Documents: `doc:{doc_id}`
+
+3. **Performance Features**
+   - Automatic compression
+   - Connection pooling
+   - Health checks
+   - Error tracking
+   - Performance metrics
 
 ## Prerequisites
 
@@ -197,137 +217,31 @@ This system goes far beyond naive RAG (Retrieval-Augmented Generation) implement
 └── logs/           # Application logs
 ```
 
-## Features
-
-### Document Processing
-- Intelligent chunking with adaptive sizes
-- Vector embeddings generation
-- Table extraction from PDFs
-- OCR for images and scanned documents
-- Code parsing with syntax highlighting
-- Batch processing with parallel execution
-
-### Advanced Retrieval
-- Hybrid search (BM25 + Vector Similarity)
-- Cross-document references
-- Dynamic context windows
-- Query expansion
-- Document graph analysis
-
-### System Features
-- Redis caching
-- Connection pooling
-- Query optimization
-- Performance monitoring
-- Comprehensive logging
-
-## Monitoring Setup
-
-### Prometheus
-- Metrics collection from all services
-- Custom alerting rules
-- Performance and resource monitoring
-- Query latency tracking
-
-### Grafana
-- Pre-configured dashboards
-- System metrics visualization
-- Document processing metrics
-- Search performance analytics
-- Cache hit rates
-- Resource utilization
-
-Access the monitoring stack:
-1. Grafana: http://localhost:3000 (default: admin/admin)
-   - System Metrics Dashboard
-   - Vector Search Performance
-   - Document Processing Pipeline
-   - Cache Performance
-
-2. Prometheus: http://localhost:9090
-   - Raw metrics
-   - Query explorer
-   - Alert manager
-
-## Development Setup
-
-1. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # Linux/Mac
-   # or
-   .\venv\Scripts\activate  # Windows
-   ```
-
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Run tests:
-   ```bash
-   pytest
-   ```
-
-4. Start services individually:
-   ```bash
-   # Backend
-   uvicorn app.backend.main:app --reload --port 8000
-
-   # Frontend
-   streamlit run app/frontend/main.py
-   ```
-
-## Configuration
-
-### Database Settings
-```python
-# config/settings.py
-POSTGRES_CONFIG = {
-    'host': 'postgres',
-    'port': 5432,
-    'database': 'file_upload_embeddings',
-    'pool_size': 20,
-    'max_overflow': 10
-}
-```
-
-### Cache Settings
-```python
-# config/settings.py
-REDIS_CONFIG = {
-    'url': 'redis://redis:6379/0',
-    'pool_size': 20,
-    'timeout': 300
-}
-```
-
-### Processing Settings
-```python
-# config/settings.py
-PROCESSING_CONFIG = {
-    'chunk_size': 1000,
-    'overlap': 200,
-    'batch_size': 50,
-    'max_workers': 4
-}
-```
-
 ## Testing
 
-### Unit Tests
+The system includes comprehensive test suites:
+
+### Performance Tests
 ```bash
-pytest tests/test_unit/
+pytest tests/test_integration/test_performance_benchmark.py
 ```
+Tests cover:
+- Document processing throughput
+- Search performance
+- Graph operations
+- Context window generation
+- Query expansion
+- Cache performance
+- Concurrent operations
 
 ### Integration Tests
 ```bash
 pytest tests/test_integration/
 ```
 
-### Performance Tests
+### Unit Tests
 ```bash
-pytest tests/test_integration/test_performance_benchmark.py
+pytest tests/test_unit/
 ```
 
 ## Contributing

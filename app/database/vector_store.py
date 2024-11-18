@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import select
 from datetime import datetime
+import logging
 
 from config.settings import settings
 from .models import Document, DocumentChunk
@@ -94,17 +95,6 @@ class VectorStore:
     ) -> List[Dict[str, Any]]:
         """
         Perform optimized similarity search with advanced filtering and reranking.
-        
-        Args:
-            query_embedding: Query embedding vector
-            top_k: Number of results to return
-            threshold: Minimum similarity threshold
-            filters: Dictionary of metadata filters
-            rerank: Whether to rerank results using additional criteria
-            include_metadata: Whether to include full chunk and document metadata
-        
-        Returns:
-            List of dictionaries containing search results with scores and metadata
         """
         try:
             # Validate input
@@ -118,12 +108,21 @@ class VectorStore:
             if not 0 <= threshold <= 1:
                 raise ValueError("Similarity threshold must be between 0 and 1")
             
+            # Log search parameters for debugging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Performing similarity search with parameters:")
+            logger.info(f"- Query embedding length: {len(query_embedding)}")
+            logger.info(f"- Top K: {top_k}")
+            logger.info(f"- Threshold: {threshold}")
+            logger.info(f"- Filters: {filters}")
+            
             # Try cache first
             cache_key = f"search:{hash(str(query_embedding))}"
             if filters:
                 cache_key += f":{hash(str(filters))}"
             cached_results = await self.cache.get_query_result(cache_key)
             if cached_results:
+                logger.info("Found cached results")
                 return cached_results
             
             # Build query with filters
@@ -148,15 +147,19 @@ class VectorStore:
                 filters=filters
             )
             
+            logger.info(f"Found {len(results)} results from query")
+            
             # Process and optionally rerank results
             processed_results = []
             for result in results:
                 chunk = await self.session.get(DocumentChunk, result["id"])
                 if not chunk:
+                    logger.warning(f"Chunk {result['id']} not found")
                     continue
                 
                 document = await self.session.get(Document, chunk.document_id)
                 if not document:
+                    logger.warning(f"Document {chunk.document_id} not found")
                     continue
                 
                 # Calculate additional ranking factors
@@ -206,6 +209,8 @@ class VectorStore:
             processed_results.sort(key=lambda x: x["combined_score"], reverse=True)
             processed_results = processed_results[:top_k]
             
+            logger.info(f"Returning {len(processed_results)} processed results")
+            
             # Cache results
             await self.cache.set_query_result(
                 cache_key,
@@ -216,7 +221,8 @@ class VectorStore:
             return processed_results
             
         except Exception as e:
-            raise Exception(f"Error performing similarity search: {str(e)}")
+            logger.error(f"Error in similarity search: {str(e)}")
+            return []
     
     async def update_document_embeddings(
         self,
