@@ -1,84 +1,35 @@
-# Use Python 3.10 slim image
-FROM python:3.10-slim-bullseye
+# Stage 1: Build
+FROM python:3.10-slim-bullseye as builder
 
 # Set working directory
 WORKDIR /app
 
-# Set environment variables
-ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
-ENV DEBIAN_FRONTEND=noninteractive
-
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     build-essential \
-    python3-dev \
-    python3-pip \
-    python3-setuptools \
-    # PDF viewing dependencies
-    poppler-utils \
-    # Image processing
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    # Additional utilities
-    curl \
-    wget \
-    # Cleanup
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
+# Copy requirements
 COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Create necessary directories
-RUN mkdir -p /app/logs /app/uploads /app/temp
-
-# Set permissions
-RUN chmod -R 755 /app/logs /app/uploads /app/temp
-
-# Copy application code
+# Copy source code
 COPY . .
 
-# Expose Streamlit port
+# Stage 2: Runtime
+FROM python:3.10-slim-bullseye
+
+# Set working directory
+WORKDIR /app
+
+# Copy built assets from builder
+COPY --from=builder /app ./
+
+# Expose port
 EXPOSE 8501
 
-# Set Streamlit configuration
-ENV STREAMLIT_SERVER_PORT=8501
-ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
-ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
-ENV STREAMLIT_THEME_BASE=light
-
-# Create Streamlit configuration directory and file
-RUN mkdir -p /root/.streamlit
-RUN echo '\
-[general]\n\
-email = ""\n\
-\n\
-[server]\n\
-enableCORS = false\n\
-enableXsrfProtection = false\n\
-\n\
-[theme]\n\
-primaryColor = "#F63366"\n\
-backgroundColor = "#FFFFFF"\n\
-secondaryBackgroundColor = "#F0F2F6"\n\
-textColor = "#262730"\n\
-font = "sans serif"\n\
-\n\
-[logger]\n\
-level = "info"\n\
-' > /root/.streamlit/config.toml
-
-# Add healthcheck
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
-
-# Run the Streamlit application
-CMD ["streamlit", "run", "app/frontend/main.py", \
-     "--server.port=8501", \
-     "--server.address=0.0.0.0", \
-     "--server.baseUrlPath=", \
-     "--browser.serverAddress=localhost", \
-     "--server.maxUploadSize=1024"]
+# Start Streamlit
+CMD ["streamlit", "run", "app.py"]
