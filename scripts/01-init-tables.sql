@@ -17,11 +17,11 @@ BEGIN
         FROM information_schema.tables 
         WHERE table_name = 'document_chunks'
     ) THEN
-        -- Create index for vector similarity search
+        -- Create StreamingDiskANN index for vector similarity search
         CREATE INDEX IF NOT EXISTS document_chunks_embedding_idx 
         ON document_chunks 
-        USING ivfflat (embedding vector_cosine_ops)
-        WITH (lists = 50);  -- Reduced from 100 for better recall on smaller datasets
+        USING streamingdiskann (embedding vector_cosine_ops)
+        WITH (lists = 100);
         
         -- Create index for document_id for faster joins
         CREATE INDEX IF NOT EXISTS document_chunks_document_id_idx
@@ -68,16 +68,19 @@ $$;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO postgres;
 
--- Configure pgvector parameters
-ALTER SYSTEM SET maintenance_work_mem = '1GB';
+-- Configure vectorscale parameters
+ALTER SYSTEM SET maintenance_work_mem = '2GB';
 ALTER SYSTEM SET max_parallel_workers_per_gather = '4';
 ALTER SYSTEM SET max_parallel_workers = '8';
 ALTER SYSTEM SET max_parallel_maintenance_workers = '4';
 
 -- Optimize for vector operations
-ALTER SYSTEM SET effective_cache_size = '4GB';
-ALTER SYSTEM SET shared_buffers = '1GB';
-ALTER SYSTEM SET work_mem = '64MB';
+ALTER SYSTEM SET effective_cache_size = '8GB';
+ALTER SYSTEM SET shared_buffers = '2GB';
+ALTER SYSTEM SET work_mem = '128MB';
+
+-- Enable parallel query execution
+ALTER SYSTEM SET max_worker_processes = '16';
 
 -- Reload configuration
 SELECT pg_reload_conf();

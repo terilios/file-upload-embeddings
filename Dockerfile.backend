@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y \
     libpoppler-cpp-dev \
     libtesseract-dev \
     libleptonica-dev \
+    postgresql-client \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Create and activate virtual environment
@@ -53,6 +55,7 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-eng \
     curl \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Install wait-for-it script
@@ -84,4 +87,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the application
-CMD ["/bin/bash", "-c", "/wait-for-it.sh postgres:5432 -t 60 -- /wait-for-it.sh redis:6379 -t 60 -- uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["/bin/bash", "-c", "/wait-for-it.sh postgres:5432 -t 60 -- /wait-for-it.sh redis:6379 -t 60 -- uvicorn app.backend.main:app --host 0.0.0.0 --port 8000"]

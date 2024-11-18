@@ -9,7 +9,9 @@ pydantic>=1.8.0
 sqlalchemy>=1.4.0
 psycopg2-binary>=2.9.0
 redis>=4.0.0
-pgvector>=0.1.0
+pgvector>=0.2.0
+psycopg>=3.1.12
+psycopg-binary>=3.1.12
 
 # File Processing
 python-docx>=0.8.11
