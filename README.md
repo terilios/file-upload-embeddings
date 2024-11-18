@@ -7,67 +7,61 @@ The File Upload Embeddings System is an enterprise-grade document intelligence p
 ### System Architecture
 
 #### Document Processing Pipeline
+
+The document processing pipeline supports multiple file types and extracts embeddings for efficient retrieval. The workflow handles edge cases, fallbacks, and dynamic chunking.
+
 ```mermaid
 graph TD
-    A[Document Upload] --> B[Document Processor]
-    B --> C{Document Type}
-    C -->|PDF| D[PDF Processor]
-    C -->|Image| E[OCR Processor]
-    C -->|Code| F[Code Parser]
-    C -->|Text| G[Text Processor]
-    
-    D --> H[Table Extractor]
-    D --> I[Text Extraction]
-    E --> J[Image Text Extraction]
-    F --> K[AST Analysis]
-    F --> L[Syntax Highlighting]
-    
-    H --> M[Chunking]
-    I --> M
+    A[Document Upload] --> B[File Validator]
+    B -->|Valid| C{Determine Processor}
+    B -->|Invalid| D[Error Response]
+
+    C -->|PDF| E[PDF Processor]
+    C -->|Image| F[OCR Processor]
+    C -->|Code| G[Code Processor]
+    C -->|Text| H[Text Processor]
+
+    E --> I[Table/Text Extraction]
+    F --> J[Text Extraction]
+    G --> K[AST Analysis]
+    H --> L[Content Normalization]
+
+    I --> M[Chunking]
     J --> M
     K --> M
     L --> M
-    
-    M --> N[Metadata Extraction]
-    N --> O[Embedding Generation]
-    O --> P[Vector Store]
-    O --> Q[Document Graph]
-    
-    P --> R[(PostgreSQL + pgvector)]
-    Q --> S[(Graph Database)]
-    
-    style A fill:#f9f,stroke:#333
-    style R fill:#bbf,stroke:#333
-    style S fill:#bbf,stroke:#333
+
+    M --> N[Metadata Enrichment]
+    N --> O[Generate Embeddings]
+    O --> P[Store in Vector DB]
+    P --> Q[(PostgreSQL + pgvectorscale)]
+
+    style Q fill:#bbf,stroke:#333
 ```
 
-#### Vector Search Architecture
+#### Query Processing and Retrieval
+
+The query processing and retrieval architecture balances speed and accuracy by combining dense vector similarity with BM25 sparse search and advanced intent analysis.
+
 ```mermaid
-graph LR
-    A[User Query] --> B[Query Processor]
-    B --> C[Query Expansion]
-    B --> D[Intent Analysis]
-    
-    C --> E[Hybrid Search]
-    D --> E
-    
-    E --> F[Vector Search]
-    E --> G[BM25 Search]
-    
-    F --> H[StreamingDiskANN]
-    G --> I[PostgreSQL FTS]
-    
-    H --> J[Result Fusion]
-    I --> J
-    
-    J --> K[Context Window]
-    K --> L[Reranker]
-    
-    L --> M[Document Graph]
-    M --> N[Answer Generation]
-    
+graph TD
+    A[User Query] --> B[Query Embedding]
+    B --> C[Cache Check]
+    C -->|Hit| D[Return Cached Results]
+    C -->|Miss| E[Perform Search]
+
+    E --> F{Search Type}
+    F -->|Dense| G[Vector Similarity Search]
+    F -->|Sparse| H[BM25 Search]
+
+    G --> I[Result Fusion]
+    H --> I
+
+    I --> J[Dynamic Context Window]
+    J --> K[Generate Answer]
+
     style A fill:#f9f,stroke:#333
-    style N fill:#f9f,stroke:#333
+    style K fill:#f9f,stroke:#333
 ```
 
 ### Performance Metrics
@@ -87,25 +81,27 @@ Based on our benchmark testing, the system achieves:
 - Docker and Docker Compose
 - Python 3.10+
 - PostgreSQL 15+ with extensions:
-  * pgvector for vector operations
-  * pgvectorscale for optimized vector indexing
-  * timescaledb for time-series capabilities
+  - pgvector for vector operations
+  - pgvectorscale for optimized vector indexing
+  - timescaledb for time-series capabilities
 - Redis 6+
 - Minimum System Requirements:
-  * 4GB RAM (8GB recommended)
-  * 10GB disk space
-  * 4 CPU cores (8 recommended)
+  - 4GB RAM (8GB recommended)
+  - 10GB disk space
+  - 4 CPU cores (8 recommended)
 - OpenAI API key or Azure OpenAI credentials
 
 ## Quick Start
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/terilios/file-upload-embeddings.git
    cd file-upload-embeddings
    ```
 
 2. Create a .env file:
+
    ```env
    # Required: Choose either OpenAI API or Azure OpenAI
    OPENAI_API_KEY=your_api_key_here
@@ -129,6 +125,7 @@ Based on our benchmark testing, the system achieves:
    ```
 
 3. Start the services:
+
    ```bash
    docker-compose up -d
    ```
@@ -167,13 +164,14 @@ random_page_cost = '1.1'
 We use StreamingDiskANN for efficient vector similarity search:
 
 ```sql
-CREATE INDEX document_chunks_embedding_idx 
-ON document_chunks 
+CREATE INDEX document_chunks_embedding_idx
+ON document_chunks
 USING streamingdiskann (embedding vector_cosine_ops)
 WITH (lists = 100);
 ```
 
 Additional performance indexes:
+
 ```sql
 -- Fast document retrieval
 CREATE INDEX document_chunks_document_id_idx ON document_chunks(document_id);
@@ -220,10 +218,13 @@ CREATE INDEX chat_messages_created_at_idx ON chat_messages(created_at);
 The system includes comprehensive test suites:
 
 ### Performance Tests
+
 ```bash
 pytest tests/test_integration/test_performance_benchmark.py
 ```
+
 Tests cover:
+
 - Document processing throughput
 - Vector search performance
 - Graph operations
@@ -233,11 +234,13 @@ Tests cover:
 - Concurrent operations
 
 ### Integration Tests
+
 ```bash
 pytest tests/test_integration/
 ```
 
 ### Unit Tests
+
 ```bash
 pytest tests/test_unit/
 ```
